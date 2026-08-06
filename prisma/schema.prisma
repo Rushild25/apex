@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  name            String?
+  email           String           @unique
+  emailVerified   DateTime?
+  image           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  password        String?
+  accounts        Account[]
+  exercises       Exercise[]
+  personalRecords PersonalRecord[]
+  progressEntries ProgressEntry[]
+  progressPhotos  ProgressPhoto[]
+  routines        Routine[]
+  sessions        Session[]
+  profile         UserProfile?
+  workouts        Workout[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model UserProfile {
+  id           String       @id @default(cuid())
+  userId       String       @unique
+  weightUnit   WeightUnit   @default(KG)
+  distanceUnit DistanceUnit @default(KM)
+  theme        Theme        @default(SYSTEM)
+  bio          String?
+  dateOfBirth  DateTime?
+  gender       Gender?
+  fitnessGoal  String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Exercise {
+  id               String            @id @default(cuid())
+  externalId       String?           @unique
+  source           ExerciseSource    @default(CUSTOM)
+  name             String
+  normalizedName   String
+  description      String?
+  instructions     String[]
+  category         String?
+  bodyPart         String?
+  target           String?
+  secondaryMuscles String[]
+  equipment        String?
+  gifUrl           String?
+  imageUrls        String[]
+  userId           String?
+  isArchived       Boolean           @default(false)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  user             User?             @relation(fields: [userId], references: [id])
+  personalRecords  PersonalRecord[]
+  routineExercises RoutineExercise[]
+  workoutExercises WorkoutExercise[]
+
+  @@index([source])
+  @@index([userId])
+  @@index([normalizedName])
+  @@index([bodyPart])
+  @@index([target])
+  @@index([equipment])
+  @@index([externalId])
+}
+
+model ExerciseSyncLog {
+  id               String     @id @default(cuid())
+  startedAt        DateTime   @default(now())
+  completedAt      DateTime?
+  status           SyncStatus
+  exercisesAdded   Int        @default(0)
+  exercisesUpdated Int        @default(0)
+  errorMessage     String?
+}
+
+model Routine {
+  id          String            @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  isArchived  Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   RoutineExercise[]
+  workouts    Workout[]
+
+  @@index([userId])
+  @@index([userId, isArchived])
+}
+
+model RoutineExercise {
+  id          String       @id @default(cuid())
+  routineId   String
+  exerciseId  String
+  order       Int
+  notes       String?
+  restSeconds Int?
+  exercise    Exercise     @relation(fields: [exerciseId], references: [id])
+  routine     Routine      @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  sets        RoutineSet[]
+
+  @@unique([routineId, order])
+  @@index([routineId])
+  @@index([exerciseId])
+}
+
+model RoutineSet {
+  id                String          @id @default(cuid())
+  routineExerciseId String
+  order             Int
+  setType           SetType         @default(NORMAL)
+  targetReps        String?
+  targetWeight      Float?
+  targetDuration    Int?
+  targetDistance    Float?
+  routineExercise   RoutineExercise @relation(fields: [routineExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([routineExerciseId, order])
+  @@index([routineExerciseId])
+}
+
+model Workout {
+  id          String            @id @default(cuid())
+  userId      String
+  routineId   String?
+  title       String
+  notes       String?
+  status      WorkoutStatus     @default(IN_PROGRESS)
+  startedAt   DateTime
+  completedAt DateTime?
+  durationSec Int?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  routine     Routine?          @relation(fields: [routineId], references: [id])
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises   WorkoutExercise[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, completedAt])
+  @@index([routineId])
+}
+
+model WorkoutExercise {
+  id               String       @id @default(cuid())
+  workoutId        String
+  exerciseId       String?
+  order            Int
+  notes            String?
+  exerciseSnapshot Json
+  exercise         Exercise?    @relation(fields: [exerciseId], references: [id])
+  workout          Workout      @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  sets             WorkoutSet[]
+
+  @@unique([workoutId, order])
+  @@index([workoutId])
+  @@index([exerciseId])
+}
+
+model WorkoutSet {
+  id                String          @id @default(cuid())
+  workoutExerciseId String
+  order             Int
+  setType           SetType         @default(NORMAL)
+  reps              Int?
+  weight            Float?
+  weightUnit        WeightUnit      @default(KG)
+  duration          Int?
+  distance          Float?
+  rpe               Float?
+  isCompleted       Boolean         @default(false)
+  completedAt       DateTime?
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutExerciseId, order])
+  @@index([workoutExerciseId])
+}
+
+model PersonalRecord {
+  id           String     @id @default(cuid())
+  userId       String
+  exerciseId   String?
+  exerciseName String
+  metric       PRMetric
+  value        Float
+  weightUnit   WeightUnit @default(KG)
+  setId        String?
+  achievedAt   DateTime
+  createdAt    DateTime   @default(now())
+  exercise     Exercise?  @relation(fields: [exerciseId], references: [id])
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId, metric])
+  @@index([userId])
+  @@index([exerciseId])
+  @@index([userId, achievedAt])
+}
+
+model ProgressEntry {
+  id         String     @id @default(cuid())
+  userId     String
+  date       DateTime   @db.Date
+  bodyWeight Float?
+  weightUnit WeightUnit @default(KG)
+  bodyFat    Float?
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model ProgressPhoto {
+  id         String   @id @default(cuid())
+  userId     String
+  takenAt    DateTime
+  storageKey String
+  url        String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, takenAt])
+}
+
+enum WeightUnit {
+  KG
+  LBS
+}
+
+enum DistanceUnit {
+  KM
+  MILES
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum ExerciseSource {
+  SYSTEM
+  CUSTOM
+}
+
+enum SyncStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum SetType {
+  NORMAL
+  WARMUP
+  DROPSET
+  FAILURE
+}
+
+enum WorkoutStatus {
+  IN_PROGRESS
+  COMPLETED
+  DISCARDED
+}
+
+enum PRMetric {
+  WEIGHT_1RM
+  WEIGHT_MAX
+  REPS_MAX
+  VOLUME_MAX
+  DURATION_MAX
+  DISTANCE_MAX
+}
