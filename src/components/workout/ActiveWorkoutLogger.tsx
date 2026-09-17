@@ -6,10 +6,18 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { finalizeWorkout, getPreviousExerciseStats } from "@/app/actions/workouts";
+import { updateRoutine } from "@/app/actions/routines";
 import { Check, Plus, Trash2, Clock, Search, X, Loader2, Dumbbell, RefreshCw } from "lucide-react";
 import { useExercises } from "@/hooks/use-exercises";
 import { useDebounce } from "use-debounce";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -32,6 +40,8 @@ export function ActiveWorkoutLogger() {
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebounce(search, 250);
   const { data: searchResults, isLoading: searchLoading } = useExercises({ search: debouncedSearch });
+  
+  const [showRoutinePrompt, setShowRoutinePrompt] = useState(false);
   
   // UX Overhaul: State for previous stats
   const [previousStats, setPreviousStats] = useState<Record<string, { weight: number | null, reps: number | null }[]>>({});
@@ -111,10 +121,40 @@ export function ActiveWorkoutLogger() {
     );
   }
 
-  const handleFinish = async () => {
+  const handleFinishClick = () => {
+    if (store.routineId) {
+      setShowRoutinePrompt(true);
+    } else {
+      executeFinish(false);
+    }
+  };
+
+  const executeFinish = async (shouldUpdateRoutine: boolean) => {
     try {
       setIsSubmitting(true);
-      
+
+      // 1. If user chose to update routine template
+      if (shouldUpdateRoutine && store.routineId) {
+        const routineUpdatePayload = {
+          name: store.title,
+          description: null,
+          exercises: store.exercises.map((ex, exIdx) => ({
+            exerciseId: ex.exerciseId,
+            order: exIdx,
+            restSeconds: ex.restSeconds ?? null,
+            notes: null,
+            sets: ex.sets.map((s, sIdx) => ({
+              order: sIdx,
+              setType: s.setType,
+              targetReps: s.reps ? s.reps.toString() : null,
+              targetWeight: s.weight ?? null,
+            }))
+          }))
+        };
+        await updateRoutine(store.routineId, routineUpdatePayload);
+      }
+
+      // 2. Prepare payload for history recording
       const payload = {
         routineId: store.routineId,
         title: store.title,
@@ -132,13 +172,14 @@ export function ActiveWorkoutLogger() {
             setType: s.setType,
             reps: s.reps,
             weight: s.weight,
-            isCompleted: s.isCompleted,
+            isCompleted: s.isCompleted || ((s.reps ?? 0) > 0 || (s.weight ?? 0) > 0),
             order: s.order
           }))
         }))
       };
 
       await finalizeWorkout(payload);
+      setShowRoutinePrompt(false);
       store.endWorkout();
       router.push("/history");
     } catch (e: unknown) {
@@ -178,7 +219,7 @@ export function ActiveWorkoutLogger() {
             {formatDuration(durationMs)}
           </div>
         </div>
-        <Button onClick={handleFinish} disabled={isSubmitting} className="shadow-[var(--shadow-neon)] font-bold px-6">
+        <Button onClick={handleFinishClick} disabled={isSubmitting} className="shadow-[var(--shadow-neon)] font-bold px-6" id="btn-finish-workout">
           {isSubmitting ? "Finishing..." : "Finish"}
         </Button>
       </div>
@@ -394,6 +435,52 @@ export function ActiveWorkoutLogger() {
           </div>
         </div>
       )}
+
+      {/* Update Routine Prompt Modal */}
+      <Dialog open={showRoutinePrompt} onOpenChange={setShowRoutinePrompt}>
+        <DialogContent className="sm:max-w-md bg-card border border-border/80 text-foreground p-6 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black text-foreground">
+              Update Routine?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-2 leading-relaxed">
+              You performed this workout based on &quot;{store.title}&quot;. Would you like to update the routine template with the exercises and sets from this session, or keep the original routine template?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2.5 mt-6">
+            <Button
+              onClick={() => executeFinish(true)}
+              disabled={isSubmitting}
+              className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 text-white font-bold py-3 rounded-xl transition-all"
+              id="btn-update-routine"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Update Routine
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={() => executeFinish(false)}
+              disabled={isSubmitting}
+              className="w-full border-border/80 hover:bg-muted font-bold py-3 rounded-xl transition-all text-foreground"
+              id="btn-keep-original"
+            >
+              Keep Original Routine
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={() => setShowRoutinePrompt(false)}
+              disabled={isSubmitting}
+              className="w-full text-xs text-muted-foreground hover:text-foreground py-2"
+              id="btn-cancel-finish"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
