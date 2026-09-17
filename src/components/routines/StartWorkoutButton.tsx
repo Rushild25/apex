@@ -48,8 +48,12 @@ export function StartWorkoutButton({ routine }: StartWorkoutButtonProps) {
   };
 
   return (
-    <Button variant="secondary" className="w-full font-bold" onClick={handleStart} disabled={isLoading}>
-      {isLoading ? "Starting..." : "Start Workout"}
+    <Button
+      className="w-full bg-[#0A84FF] hover:bg-[#0A84FF]/90 text-white font-bold py-2.5 rounded-xl shadow transition-all active:scale-[0.99]"
+      onClick={handleStart}
+      disabled={isLoading}
+    >
+      {isLoading ? "Starting..." : "Start Routine"}
     </Button>
   );
 }
