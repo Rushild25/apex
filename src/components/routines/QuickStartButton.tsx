@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useWorkoutStore } from "@/store/workout-store";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Play } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export function QuickStartButton() {
   const store = useWorkoutStore();
@@ -18,9 +18,14 @@ export function QuickStartButton() {
   };
 
   return (
-    <Button onClick={handleStart} disabled={isLoading} className="gap-2">
-      <Play className="w-4 h-4" />
-      {isLoading ? "Starting..." : "Quick Start Workout"}
+    <Button
+      onClick={handleStart}
+      disabled={isLoading}
+      className="w-full py-6 rounded-xl bg-card hover:bg-muted text-foreground border border-border/80 flex items-center justify-center gap-2.5 font-bold text-base shadow-sm transition-all active:scale-[0.99]"
+      variant="outline"
+    >
+      <Plus className="w-5 h-5 text-primary stroke-[2.5px]" />
+      {isLoading ? "Starting..." : "Start Empty Workout"}
     </Button>
   );
 }
