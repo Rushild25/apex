@@ -25,6 +25,10 @@ model User {
   sessions        Session[]
   profile         UserProfile?
   workouts        Workout[]
+  likes           WorkoutLike[]
+  comments        WorkoutComment[]
+  routineFolders  RoutineFolder[]
+  measurements    BodyMeasurement[]
 
   @@index([email])
 }
@@ -136,9 +140,12 @@ model Routine {
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises   RoutineExercise[]
   workouts    Workout[]
+  folderId    String?
+  folder      RoutineFolder?    @relation(fields: [folderId], references: [id])
 
   @@index([userId])
   @@index([userId, isArchived])
+  @@index([folderId])
 }
 
 model RoutineExercise {
@@ -187,6 +194,8 @@ model Workout {
   routine     Routine?          @relation(fields: [routineId], references: [id])
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercises   WorkoutExercise[]
+  likes       WorkoutLike[]
+  comments    WorkoutComment[]
 
   @@index([userId])
   @@index([userId, status])
@@ -334,4 +343,73 @@ enum PRMetric {
   VOLUME_MAX
   DURATION_MAX
   DISTANCE_MAX
+}
+
+model WorkoutLike {
+  id        String   @id @default(cuid())
+  workoutId String
+  userId    String
+  createdAt DateTime @default(now())
+  workout   Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutId, userId])
+  @@index([workoutId])
+  @@index([userId])
+}
+
+model WorkoutComment {
+  id        String   @id @default(cuid())
+  workoutId String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  workout   Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workoutId])
+  @@index([userId])
+}
+
+model RoutineFolder {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routines  Routine[]
+
+  @@index([userId])
+}
+
+model BodyMeasurement {
+  id           String    @id @default(cuid())
+  userId       String
+  date         DateTime  @db.Date
+  weight       Float?
+  waist        Float?
+  bodyFat      Float?
+  leanMass     Float?
+  neck         Float?
+  shoulder     Float?
+  chest        Float?
+  bicepLeft    Float?
+  bicepRight   Float?
+  forearmLeft  Float?
+  forearmRight Float?
+  abdomen      Float?
+  hips         Float?
+  thighLeft    Float?
+  thighRight   Float?
+  calfLeft     Float?
+  calfRight    Float?
+  photoUrl     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
 }
