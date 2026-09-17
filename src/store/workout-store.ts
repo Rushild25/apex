@@ -244,7 +244,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       }),
     }),
     {
-      name: 'hevy-workout-storage', // key in localStorage
+      name: 'apex-workout-storage', // key in localStorage
     }
   )
 );
