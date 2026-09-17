@@ -1,78 +1,173 @@
-"use client";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { ProfileDashboardClient } from "@/components/profile/ProfileDashboardClient";
+import { FeedWorkout } from "@/components/feed/WorkoutFeedCard";
+import { startOfWeek, subWeeks, format, addDays } from "date-fns";
 
-import { useSession, signOut } from "next-auth/react";
-import { User, LogOut, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+export const dynamic = "force-dynamic";
 
-export default function ProfilePage() {
-  const { data: session } = useSession();
+export default async function ProfilePage() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
 
-  const handleExport = async () => {
-    try {
-      const res = await fetch('/api/export');
-      if (!res.ok) throw new Error('Failed to export data');
-      const data = await res.json();
-      
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "workout-data.json";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-      alert("Failed to export data");
+  const userId = session.user.id;
+
+  // Fetch user data
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+    },
+  });
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  // Count workouts
+  const workoutCount = await prisma.workout.count({
+    where: {
+      userId,
+      status: "COMPLETED",
+    },
+  });
+
+  // Fetch personal records
+  const prs = await prisma.personalRecord.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      achievedAt: true,
+    },
+  });
+
+  // Fetch all completed workouts for this user
+  const workouts = await prisma.workout.findMany({
+    where: {
+      userId,
+      status: "COMPLETED",
+    },
+    include: {
+      exercises: {
+        include: {
+          exercise: {
+            select: {
+              name: true,
+              target: true,
+              gifUrl: true,
+            },
+          },
+          sets: {
+            where: { isCompleted: true },
+            select: {
+              reps: true,
+              weight: true,
+            },
+          },
+        },
+        orderBy: { order: "asc" },
+      },
+    },
+    orderBy: { completedAt: "desc" },
+  });
+
+  // Format workouts for feed
+  const feedWorkouts: FeedWorkout[] = workouts.map((w, index) => {
+    let totalVolume = 0;
+    const exercisesSummary = w.exercises.map((we) => {
+      const completedSets = we.sets.filter((s) => s.weight && s.reps);
+      for (const s of completedSets) {
+        totalVolume += (s.weight || 0) * (s.reps || 0);
+      }
+
+      return {
+        id: we.id,
+        exerciseName: we.exercise?.name || (we.exerciseSnapshot as any)?.name || "Exercise",
+        setsCount: we.sets.length,
+        target: we.exercise?.target,
+        gifUrl: we.exercise?.gifUrl,
+      };
+    });
+
+    const workoutDate = w.completedAt ? new Date(w.completedAt).toDateString() : null;
+    const prCount = workoutDate
+      ? prs.filter((p) => new Date(p.achievedAt).toDateString() === workoutDate).length
+      : 0;
+
+    return {
+      id: w.id,
+      title: w.title,
+      completedAt: w.completedAt,
+      startedAt: w.startedAt,
+      durationSec: w.durationSec,
+      user: {
+        id: user.id,
+        name: user.name,
+        image: user.image,
+      },
+      workoutNumber: workoutCount - index,
+      prCount,
+      totalVolume,
+      exercises: exercisesSummary,
+    };
+  });
+
+  // Generate last 10 weekly buckets
+  const now = new Date();
+  const weeklyData = [];
+
+  for (let i = 9; i >= 0; i--) {
+    const weekStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+    const weekEnd = addDays(weekStart, 7);
+
+    const weekWorkouts = workouts.filter((w) => {
+      if (!w.completedAt) return false;
+      const d = new Date(w.completedAt);
+      return d >= weekStart && d < weekEnd;
+    });
+
+    let reps = 0;
+    let volumeKg = 0;
+    let durationHours = 0;
+
+    for (const w of weekWorkouts) {
+      if (w.durationSec) {
+        durationHours += w.durationSec / 3600;
+      }
+      for (const we of w.exercises) {
+        for (const s of we.sets) {
+          if (s.reps) {
+            reps += s.reps;
+          }
+          if (s.weight && s.reps) {
+            volumeKg += s.weight * s.reps;
+          }
+        }
+      }
     }
-  };
+
+    weeklyData.push({
+      label: format(weekStart, "MMM d"),
+      reps,
+      volumeKg,
+      durationHours: Math.round(durationHours * 10) / 10,
+    });
+  }
 
   return (
-    <div className="container max-w-2xl py-6 space-y-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <User className="w-6 h-6" />
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Details</CardTitle>
-          <CardDescription>Your personal information</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-muted-foreground text-xs">Name</Label>
-            <p className="font-medium">{session?.user?.name || "Anonymous User"}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Email</Label>
-            <p className="font-medium">{session?.user?.email || "No email"}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Data</CardTitle>
-          <CardDescription>Manage your workout data</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full justify-start" onClick={handleExport}>
-            <Download className="w-4 h-4 mr-2" />
-            Export Data to JSON
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Button variant="destructive" className="w-full mt-8" onClick={() => signOut({ callbackUrl: "/login" })}>
-        <LogOut className="w-4 h-4 mr-2" />
-        Sign Out
-      </Button>
-    </div>
+    <ProfileDashboardClient
+      user={user}
+      workoutCount={workoutCount}
+      followersCount={0}
+      followingCount={0}
+      weeklyData={weeklyData}
+      workouts={feedWorkouts}
+    />
   );
 }
