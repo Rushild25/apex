@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Dumbbell, History, User, Settings, LogOut } from "lucide-react";
+import { Home, Dumbbell, History, User, Settings, Calendar, LineChart, Activity, Scale, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
 
 const navItems = [
   { name: "Home", href: "/", icon: Home },
-  { name: "Workout", href: "/routines", icon: Dumbbell },
-  { name: "History", href: "/history", icon: History },
+  { name: "Workout", href: "/workout", icon: Dumbbell },
+  { name: "Exercises", href: "/exercises", icon: Activity },
+  { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Measures", href: "/measures", icon: Scale },
+  { name: "Statistics", href: "/statistics", icon: LineChart },
   { name: "Profile", href: "/profile", icon: User },
 ];
 
@@ -20,7 +23,7 @@ export function Sidebar() {
     <aside className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 border-r border-border bg-sidebar text-sidebar-foreground z-40">
       <div className="flex items-center h-16 px-6 border-b border-border">
         <Dumbbell className="w-6 h-6 mr-2 text-primary" />
-        <span className="text-xl font-bold tracking-tight">Tracker</span>
+        <span className="text-xl font-black tracking-wider uppercase">APEX</span>
       </div>
 
       <div className="flex-1 py-6 px-4 overflow-y-auto">
