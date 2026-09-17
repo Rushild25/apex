@@ -36,12 +36,11 @@ export async function createRoutine(data: z.infer<typeof createRoutineSchema>) {
       },
     };
 
-    console.log("PRISMA CREATE PAYLOAD:", JSON.stringify(payload, null, 2));
-
     const routine = await prisma.routine.create({
       data: payload
     });
 
+    revalidatePath("/workout");
     revalidatePath("/routines");
     return { success: true, routineId: routine.id };
   } catch (error: any) {
@@ -61,6 +60,7 @@ export async function deleteRoutine(id: string) {
     if (routine?.userId !== userId) throw new Error("Unauthorized");
 
     await prisma.routine.delete({ where: { id } });
+    revalidatePath("/workout");
     revalidatePath("/routines");
     return { success: true };
   } catch (error: any) {
@@ -107,6 +107,7 @@ export async function updateRoutine(id: string, data: z.infer<typeof createRouti
       })
     ]);
 
+    revalidatePath("/workout");
     revalidatePath("/routines");
     return { success: true, routineId: id };
   } catch (error: any) {
