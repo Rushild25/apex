@@ -5,6 +5,7 @@ interface UseExercisesParams {
   search?: string;
   bodyPart?: string;
   target?: string;
+  equipment?: string;
 }
 
 export function useExercises(params?: UseExercisesParams) {
@@ -15,6 +16,7 @@ export function useExercises(params?: UseExercisesParams) {
       if (params?.search) searchParams.set("search", params.search);
       if (params?.bodyPart) searchParams.set("bodyPart", params.bodyPart);
       if (params?.target) searchParams.set("target", params.target);
+      if (params?.equipment) searchParams.set("equipment", params.equipment);
 
       const url = `/api/exercises${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
       
